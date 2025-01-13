@@ -1,4 +1,4 @@
-from sysidentpy.parameter_estimation import Estimators
+from sysidentpy.parameter_estimation.estimators import Estimators
 import sysidentpy.basis_function as basis_function
 import sysidentpy.model_structure_selection as model_structure_selection
 import inspect
