@@ -1,26 +1,46 @@
 import streamlit as st
 import assist.utils as utils
 from streamlit.components.v1 import html
+from assist.translations import PAGE_TITLES, FILE_UPLOAD_TEXT
 
-
-st.set_page_config(  # Configurações gerais da página
-    page_title="SysIdentPyGUI",
-    page_icon="http://sysidentpy.org/overrides/assets/images/favicon.png",
-    layout="wide",
-    # initial_sidebar_state="collapsed"
+# 修改文件上传提示文本
+st.markdown(
+    """
+    <style>
+        .uploadedFile {
+            display: none;
+        }
+        .stFileUploader > section > input::file-selector-button {
+            content: "%s";
+        }
+        .stFileUploader > section > div[data-testid="stMarkdownContainer"] > p {
+            font-size: 14px;
+            color: rgb(49, 51, 63);
+        }
+        .stFileUploader > section > div[data-testid="stMarkdownContainer"] > p:first-child::before {
+            content: "%s\\A";
+            white-space: pre;
+        }
+        .stFileUploader > section > div[data-testid="stMarkdownContainer"] > p:last-child::before {
+            content: "%s";
+        }
+        /* 修改侧边栏页面名称显示 */
+        section[data-testid="stSidebar"] .css-17lntkn {
+            display: none;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {
+            padding-top: 1rem;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a {
+            padding: 0.5rem 1rem;
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover {
+            background-color: rgba(151, 166, 195, 0.15);
+        }
+        section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a p {
+            font-size: 1rem;
+        }
+    </style>
+    """ % (FILE_UPLOAD_TEXT["browse_files"], FILE_UPLOAD_TEXT["drag_drop"], FILE_UPLOAD_TEXT["file_limit"]),
+    unsafe_allow_html=True
 )
-
-utils.addlogo()
-utils.removemenu()
-
-with st.expander("Information"):
-    st.markdown(
-        "**SysIdentPyGUI** is a webapp for the Python module **SysIdentPy**. **SysIdentPy** is an open-source Python module for System Identification using NARMAX models built on top of numpy. **SysIdentPy** provides an easy-to-use and flexible framework for building Dynamical Nonlinear Models for time series and dynamic systems."
-    )
-    st.markdown(
-        "Get more information on our **More about the project** page and in [SysIdentPy's Documentation](https://sysidentpy.org/) and its GitHub repository."
-    )
-    st.markdown(
-        """ [![Repo](https://badgen.net/github/release/wilsonrljr/sysidentpy/?icon=github&labelColor=373736&label&color=f47c1c)](https://github.com/wilsonrljr/sysidentpy) """,
-        unsafe_allow_html=True,
-    )

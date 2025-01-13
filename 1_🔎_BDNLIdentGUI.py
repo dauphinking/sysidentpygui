@@ -1,7 +1,11 @@
-# os comentários não são feitos do modo usual (usando as aspas e varias linhas), pois o streamlit interpreta o texto solto no código
-# entre aspas como string, e 'printa' o texto na aplicação
-
 import streamlit as st
+
+st.set_page_config(
+    page_title="非线性动态系统辨识",  # 这个会显示在浏览器标签页
+    page_icon="🔎",
+    layout="wide",
+)
+
 import os
 import pandas as pd
 from assist.assist_dicts import (
@@ -29,6 +33,11 @@ import pickle as pk
 from math import floor
 import platform
 
+st.title("非线性动态系统辨识")  # 这个会显示在页面顶部
+
+utils.addlogo()
+utils.removemenu()
+
 if platform.system() == "Linux":
     root = os.path.join(os.path.dirname(__file__) + "/assist")
 else:
@@ -39,7 +48,7 @@ with open(path, encoding="utf-8") as code:
     c = code.read()
     exec(c, globals())
 
-tabl = ["Load Data", "Data Preprocessing", "Model Setup", "Model Validation and Metrics", "Save Model"]
+tabl = ["数据加载", "数据预处理", "模型设置", "模型验证与评估", "保存模型"]
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(tabl)
 
@@ -47,31 +56,31 @@ with tab1:
     col, esp0, col0 = st.columns([5, 1, 5])
 
     with col:
-        st.file_uploader("Input Data", key="x_data", help="Upload your CSV file")
+        st.file_uploader("输入数据", key="x_data", help="拖拽或点击上传CSV格式文件")
         if st.session_state["x_data"] != None:
             data_x = pd.read_csv(st.session_state["x_data"], sep="\t")
 
     with col0:
-        st.file_uploader("Output Data", key="y_data", help="Upload your CSV file")
+        st.file_uploader("输出数据", key="y_data", help="拖拽或点击上传CSV格式文件")
         if st.session_state["y_data"] != None:
             data_y = pd.read_csv(st.session_state["y_data"], sep="\t")
 
     col1, esp1, esp2 = st.columns([2, 1, 7])
     with col1:
-        st.number_input("Validating Percentage", 0.0, 100.0, value=15.0, key="val_perc")
+        st.number_input("验证数据比例 (%)", 0.0, 100.0, value=15.0, key="val_perc")
     st.markdown("""---""")
-    with st.expander("Instructions"):
+    with st.expander("使用说明"):
         st.write(
-            "Load above your .csv/.txt input and output data, formatted in a column (in case of multiple inputs, use a tab as a separator). Then, set the percentage of the data that will be used as validation data."
+            "请上传输入和输出数据的CSV/TXT文件，数据应按列排列（如果有多个输入，请使用制表符分隔）。然后设置用于验证的数据比例。"
         )
         st.write(
-            "For better performance, load your output data after setting up your model. The input data is required so the app can identify the number of inputs (therefore, the user cannot setup the model without loading the input data)."
+            "为获得更好的性能，建议在设置模型后再加载输出数据。需要先加载输入数据以便程序确定输入数量（因此在加载输入数据之前无法设置模型）。"
         )
         st.write(
-            "You can download the model once both the input and output data have been loaded."
+            "只有在加载了输入和输出数据后才能下载模型。"
         )
         st.write(
-            "We are aware of a bug that happens when you change the Model Structure Selection Algorithm. If you press the 'R' key it will solve it. The cause of the bug is known, but a fix is not really doable within our code format."
+            "当更改模型结构选择算法时可能出现问题，按'R'键可以解决。问题原因已知，但在当前代码格式下无法完全修复。"
         )
 
     if st.session_state["x_data"] != None:
@@ -92,7 +101,7 @@ with tab1:
             data_y[perc_index:].to_numpy(),
         )
 
-with tab2:  # Data Preprocessing tab
+with tab2:  # 数据预处理 tab
     from assist.data_preprocessing import DataPreprocessor
     
     preprocessor = DataPreprocessor()
@@ -102,15 +111,15 @@ with tab2:  # Data Preprocessing tab
        st.session_state["x_data"] is not None and st.session_state["y_data"] is not None:
         preprocessor.show_data_preview()
     else:
-        st.warning("请先在'Load Data'页面上传数据")
+        st.warning("请先在'数据加载'页面上传数据")
 
 with tab3:  # Model Setup tab
     if st.session_state["x_data"] != None:
         col2, esp3, esp4 = st.columns([2, 1, 1.65])
         with col2:
             st.selectbox(
-                "Basis Function", basis_function_list, key="basis_function_key", index=1
-            )  # escolhendo a basis function
+                "基函数类型", basis_function_list, key="basis_function_key", index=1
+            )
 
             for i in range(
                 len(basis_function_list)
@@ -231,7 +240,7 @@ with tab3:  # Model Setup tab
             col3, esp5, esp6 = st.columns([3, 1, 1])
             with col3:
                 st.selectbox(
-                    "Model Structure Selection Algorithm",
+                    "模型结构选择算法",
                     list(model_struc_dict),
                     key="model_struc_select_key",
                     index=3,
@@ -586,19 +595,19 @@ with tab3:  # Model Setup tab
         if (
             st.session_state["y_data"] != None and st.session_state["x_data"] != None
         ):  # não é o melhor jeito de fazer isso
-            st.write("Predict Options")
+            st.write("预测选项")
             if isinstance(model, MetaMSS):  # MetaMSS tem métodos diferentes
                 model.fit(X=x_train, y=y_train, X_test=x_valid, y_test=y_valid)
                 if "steps_ahead" not in st.session_state:
                     st.session_state["steps_ahead"] = None
                 if "forecast_horizon" not in st.session_state:
                     st.session_state["forecast_horizon"] = None
-                st.write("Free Run Simulation")
+                st.write("自由运行仿真")
                 if st.checkbox("", value=True, key="free_run") is False:
-                    st.number_input("Steps Ahead", key="steps_ahead", min_value=1)
+                    st.number_input("预测步数", key="steps_ahead", min_value=1)
                     if model.model_type == "NAR":
                         st.number_input(
-                            "Forecast Horizon", key="forecast_horizon", min_value=1
+                            "预测范围", key="forecast_horizon", min_value=1
                         )
                 yhat = model.predict(
                     X=x_valid,
@@ -613,12 +622,12 @@ with tab3:  # Model Setup tab
                     st.session_state["steps_ahead"] = None
                 if "forecast_horizon" not in st.session_state:
                     st.session_state["forecast_horizon"] = None
-                st.write("Free Run Simulation")
+                st.write("自由运行仿真")
                 if st.checkbox("", value=True, key="free_run") is False:
-                    st.number_input("Steps Ahead", key="steps_ahead", min_value=1)
+                    st.number_input("预测步数", key="steps_ahead", min_value=1)
                     if model.model_type == "NAR":
                         st.number_input(
-                            "Forecast Horizon", key="forecast_horizon", min_value=1
+                            "预测范围", key="forecast_horizon", min_value=1
                         )
                 yhat = model.predict(
                     X=x_valid,
@@ -631,7 +640,7 @@ with tab4:  # Model Validation tab
     if (
         st.session_state["y_data"] != None and st.session_state["x_data"] != None
     ):  # não é o melhor jeito de fazer isso
-        st.write("Model Regressors")
+        st.write("模型回归器")
         r = pd.DataFrame(
             results(
                 model.final_model,
@@ -641,7 +650,7 @@ with tab4:  # Model Validation tab
                 err_precision=8,
                 dtype="sci",
             ),
-            columns=["Regressors", "Parameters", "ERR"],
+            columns=["回归项", "参数", "ERR"],
         )
         st.dataframe(r)
 
@@ -650,7 +659,7 @@ with tab4:  # Model Validation tab
             x1e = compute_cross_correlation(y_valid, yhat, x_valid)
         else:
             x1e = compute_cross_correlation(y_valid, yhat, x_valid[:, 0])
-        with st.expander("Results Plot"):
+        with st.expander("结果图"):
             if st.session_state["free_run"] == True:
                 st.image(utils.plot_results(y=y_valid, yhat=yhat, n=1000))
             else:
@@ -660,25 +669,25 @@ with tab4:  # Model Validation tab
                         yhat=yhat,
                         n=1000,
                         title=str(st.session_state["steps_ahead"])
-                        + " Steps ahead simulation",
+                        + " 步预测仿真",
                     )
                 )
-        with st.expander("Residues Plot"):
+        with st.expander("残差图"):
             st.image(
                 utils.plot_residues_correlation(
-                    data=ee, title="Residues", ylabel="$e^2$"
+                    data=ee, title="残差", ylabel="$e^2$"
                 )
             )
             st.image(
                 utils.plot_residues_correlation(
-                    data=x1e, title="Residues", ylabel="$x_1e$", second_fig=True
+                    data=x1e, title="残差", ylabel="$x_1e$", second_fig=True
                 )
             )
 
         metrics_df = dict()
         metrics_namelist = list()
         metrics_vallist = list()  # criando listas separadas deixa mais bonito
-        with st.expander("Metrics"):
+        with st.expander("评估指标"):
             for index in range(len(metrics_list)):
                 if metrics_list[index] == "forecast_error":
                     pass
@@ -689,14 +698,14 @@ with tab4:  # Model Validation tab
                     metrics_vallist.append(
                         getattr(metrics, metrics_list[index])(y_valid, yhat)
                     )
-            metrics_df["Metric Name"] = metrics_namelist
-            metrics_df["Value"] = metrics_vallist
-            st.dataframe(pd.DataFrame(metrics_df).style.format({"Value": "{:f}"}))
+            metrics_df["指标名称"] = metrics_namelist
+            metrics_df["数值"] = metrics_vallist
+            st.dataframe(pd.DataFrame(metrics_df).style.format({"数值": "{:f}"}))
 
 with tab5:  # Save Model tab
     if st.session_state["y_data"] != None and st.session_state["x_data"] != None:
         st.download_button(
-            "Download Model",
+            "下载模型",
             data=pk.dumps(model),
             file_name="my_model.syspy",
         )

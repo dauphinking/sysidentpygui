@@ -1,10 +1,10 @@
-site_name: SysIdentPyGUI
+site_name: BDNLIdentGUI
 site_description: Graphical Interface for System Identification
 site_author: Júlio César Enezio Júnior
 site_url: 
 
-repo_name: jceneziojr/sysidentpygui
-repo_url: https://github.com/jceneziojr/sysidentpygui
+repo_name: jceneziojr/bdnlidentgui
+repo_url: https://github.com/jceneziojr/bdnlidentgui
 
 copyright: Copyright &copy; 2023 - Júlio C. Enezio Jr.
 

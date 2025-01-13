@@ -10,4 +10,4 @@ COPY . .
 
 ENTRYPOINT ["streamlit", "run"]
 
-CMD ["1_🔎_SysIdentPyGUI.py"]
+CMD ["1_��_BDNLIdentGUI.py"]

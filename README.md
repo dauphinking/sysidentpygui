@@ -2,23 +2,23 @@
 <img src="https://i.imgur.com/roD5DkG.png" width="640" height="320" />
 </p>
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://sysidentpygui.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://bdnlidentgui.streamlit.app/)
 [![Repo](https://badgen.net/github/release/wilsonrljr/sysidentpy/?icon=github&labelColor=373736&label&color=f47c1c)](https://github.com/wilsonrljr/sysidentpy)
 
-## What is SysIdentPyGUI?
+## What is BDNLIdentGUI?
 
-**SysIdentPyGUI** is a webapp for the Python module **SysIdentPy**. **SysIdentPy** is an open-source Python module for System Identification using NARMAX models built on top of numpy. **SysIdentPy** provides an easy-to-use and flexible framework for building Dynamical Nonlinear Models for time series and dynamic systems.
+**BDNLIdentGUI** is a webapp for the Python module **SysIdentPy**. **SysIdentPy** is an open-source Python module for System Identification using NARMAX models built on top of numpy. **SysIdentPy** provides an easy-to-use and flexible framework for building Dynamical Nonlinear Models for time series and dynamic systems.
 
-Get more information on our [**About**](https://sysidentpygui.streamlit.app/About) page and in [**SysIdentPy's Documentation**](https://sysidentpy.org/) and its [**GitHub repository**](https://github.com/wilsonrljr/sysidentpy/).
+Get more information on our [**About**](https://bdnlidentgui.streamlit.app/About) page and in [**SysIdentPy's Documentation**](https://sysidentpy.org/) and its [**GitHub repository**](https://github.com/wilsonrljr/sysidentpy/).
 
 <img src="/images/1.gif" width="60%" height="60%" />
 
-## How can I use SysIdentPyGUI?
+## How can I use BDNLIdentGUI?
 
-**SysIdentPyGUI** is currently hosted on [***Streamlit Cloud***](https://sysidentpygui.streamlit.app/). You can run it locally on your machine via a containerized version through [***Docker***](https://www.docker.com/) by using the Dockerfile that is available, through the following commands:
+**BDNLIdentGUI** is currently hosted on [***Streamlit Cloud***](https://bdnlidentgui.streamlit.app/). You can run it locally on your machine via a containerized version through [***Docker***](https://www.docker.com/) by using the Dockerfile that is available, through the following commands:
 
 ``` console
-docker build -t sysidenpygui .
+docker build -t bdnlidentgui .
 ```
 The above command will build the Docker Image. Check the image by typing:
 
@@ -26,21 +26,21 @@ The above command will build the Docker Image. Check the image by typing:
 docker images
 ```
 
-The `sysidentpygui` image should appear in the images list. Run the container with:
+The `bdnlidentgui` image should appear in the images list. Run the container with:
 
 ``` console
-docker run -p 8501:8501 sysidentpygui
+docker run -p 8501:8501 bdnlidentgui
 ```
 
 Alternatively, you can run the Streamlit application locally using:
 
 ``` console
-streamlit run 1_🔎_SysIdentPyGUI.py
+streamlit run 1_🔎_BDNLIdentGUI.py
 ```
 
 ### Requirements for local use
 
-SysIdentPyGUI requires the following modules for a local host:
+BDNLIdentGUI requires the following modules for a local host:
 
 - Python (>= 3.10)
 - Sysidentpy (== 0.3.1)
@@ -53,7 +53,7 @@ SysIdentPyGUI requires the following modules for a local host:
 Use `pip` to install the dependecies throught the `requirements.txt` file. If you choose to run the containerized version, the Dockerfile will install de dependencies for you.
 
 
-## Which features from SysIdentPy are available on SysIdentPyGUI?
+## Which features from SysIdentPy are available on BDNLIdentGUI?
 
 - Model identification using AOLS, ER, MetaMSS and FROLS
 - Download your model
@@ -61,7 +61,7 @@ Use `pip` to install the dependecies throught the `requirements.txt` file. If yo
 - Simulate a predefined model
 
 ### Basic usage examples
-To replicate the following examples, you can download the data available [**here**](https://github.com/jceneziojr/sysidentpygui_testdata).
+To replicate the following examples, you can download the data available [**here**](https://github.com/jceneziojr/bdnlidentgui_testdata).
 #### Model ID
 
 First upload your data and set the percentage of data that will be used as validation data.
@@ -116,6 +116,6 @@ Go further down to see the model equation, model metrics, results and residues p
 
 <img src="/images/14.PNG" width="60%" height="60%" />
 
-## Why does SysIdentPyGUI exist?
+## Why does BDNLIdentGUI exist?
 
-SysIdentPyGUI is an use alternative for people that would like to use SysIdentPy toolbox but aren't familiar with Python, such as medical or economy students.
+BDNLIdentGUI is an use alternative for people that would like to use SysIdentPy toolbox but aren't familiar with Python, such as medical or economy students.
