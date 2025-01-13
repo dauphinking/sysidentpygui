@@ -3,5 +3,5 @@ numpy>=1.26.0
 pandas>=2.1.0
 Pillow>=10.0.0
 streamlit>=1.29.0
-sysidentpy>=0.3.1
+sysidentpy==0.3.1
 seaborn>=0.13.0
