@@ -1,0 +1,14 @@
+{
+    "builds": [
+        {
+            "src": "1_🔎_BDNLIdentGUI.py",
+            "use": "@streamlit/vercel-plugin"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "1_🔎_BDNLIdentGUI.py"
+        }
+    ]
+} 
