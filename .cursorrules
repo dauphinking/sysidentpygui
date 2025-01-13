@@ -70,10 +70,25 @@ If needed, you can further use the `web_scraper.py` file to scrape the web page 
 
 # Scratchpad
 
-Current Task: Fix missing dependencies for tests
+Current Task: Run SysIdentPyGUI example
 
-Required packages to install:
-[X] google-generativeai (for LLM API)
-[X] duckduckgo-search (for search engine)
-[X] html5lib (for web scraper)
-[ ] Install all dependencies and verify tests pass
+Steps:
+[X] Create and activate Python virtual environment (in user home directory due to permission issues)
+[X] Install required dependencies from requirements.txt
+[X] Run the Streamlit application
+[X] Verify the application is accessible in web browser (http://localhost:8501)
+[X] Download example data from https://github.com/jceneziojr/sysidentpygui_testdata
+[ ] Follow example workflow:
+    [X] Identify correct input/output data files (xdata.csv and ydata.csv)
+    [X] Load input/output data and set validation percentage
+    [X] Configure model in Model Setup tab
+        - Select "Polynomial" basis function
+        - Set Polynomial Degree to 2
+        - Select "FROLS" algorithm
+        - Set Input/Output/Extended Lags to 2
+    [IN PROGRESS] Check results in Model Validation tab
+        - Review model regressors and their ERR values
+        - Examine prediction plots (Free-run and One-step-ahead)
+        - Check residues plots
+        - Evaluate performance metrics
+    [ ] Save the model if desired
