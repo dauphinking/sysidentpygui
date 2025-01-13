@@ -10,7 +10,7 @@ import inspect
 
 def addlogo():
     st.markdown(
-        """<img src="https://i.imgur.com/roD5DkG.png" alt="logo" class="center"> """,
+        """<img src="https://www.biditech.cn/_next/image?url=%2Fimages%2Fbiditech-logo.png&w=256&q=75" alt="logo" class="center"> """,
         unsafe_allow_html=True,
     )  # adiciona a logo
     st.markdown(
