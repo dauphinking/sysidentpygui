@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import warnings
+from io import StringIO
 
 # 过滤警告信息
 warnings.filterwarnings('ignore', category=RuntimeWarning)
@@ -27,25 +28,60 @@ class DataPreprocessor:
             
         if "x_data" in st.session_state and st.session_state["x_data"] is not None:
             try:
-                # 直接从文件对象读取数据
+                # 读取输入数据
                 data = st.session_state["x_data"].getvalue().decode('utf-8').splitlines()
-                self.input_data = pd.DataFrame([float(x) for x in data if x.strip()], columns=['value'])
-                print("Input data loaded successfully")
+                data = [line.strip() for line in data if line.strip()]  # 去除空行和空白
+                print(f"First line of input data: {data[0]}")
+                
+                if '\t' in data[0]:  # 多列数据，用制表符分隔
+                    print("Detected multi-column data")
+                    values = []
+                    for line in data:
+                        try:
+                            # 使用pandas直接读取制表符分隔的字符串
+                            row = pd.read_csv(StringIO(line), sep='\t', header=None).iloc[0].values
+                            values.append(row)
+                        except Exception as e:
+                            print(f"Error parsing line: {line}")
+                            raise e
+                    self.input_data = pd.DataFrame(values)
+                    print("Loaded multi-column input data")
+                else:  # 单列数据
+                    print("Detected single-column data")
+                    values = []
+                    for line in data:
+                        try:
+                            values.append(float(line))
+                        except ValueError as e:
+                            print(f"Error parsing line: {line}")
+                            raise e
+                    self.input_data = pd.DataFrame(values, columns=['value'])
+                    print("Loaded single-column input data")
                 print("Input data shape:", self.input_data.shape)
                 print("Input data head:\n", self.input_data.head())
             except Exception as e:
                 print("Error loading input data:", str(e))
+                self.input_data = None
                 
         if "y_data" in st.session_state and st.session_state["y_data"] is not None:
             try:
-                # 直接从文件对象读取数据
+                # 读取输出数据
                 data = st.session_state["y_data"].getvalue().decode('utf-8').splitlines()
-                self.output_data = pd.DataFrame([float(x) for x in data if x.strip()], columns=['value'])
+                data = [line.strip() for line in data if line.strip()]  # 去除空行和空白
+                values = []
+                for line in data:
+                    try:
+                        values.append(float(line))
+                    except ValueError as e:
+                        print(f"Error parsing line: {line}")
+                        raise e
+                self.output_data = pd.DataFrame(values, columns=['value'])
                 print("Output data loaded successfully")
                 print("Output data shape:", self.output_data.shape)
                 print("Output data head:\n", self.output_data.head())
             except Exception as e:
                 print("Error loading output data:", str(e))
+                self.output_data = None
         print("=== 数据加载完成 ===\n")
     
     def show_data_preview(self):
@@ -77,17 +113,24 @@ class DataPreprocessor:
                 
                 # 2. 时间序列图
                 print("Creating time series plots...")
-                fig = make_subplots(rows=2, cols=1,
-                                  subplot_titles=('Input Time Series', 'Output Time Series'))
-                fig.add_trace(
-                    go.Scatter(y=self.input_data.iloc[:,0], name="Input"),
-                    row=1, col=1
-                )
+                n_inputs = self.input_data.shape[1]
+                fig = make_subplots(rows=n_inputs+1, cols=1,
+                                  subplot_titles=['Input Time Series ' + str(i+1) for i in range(n_inputs)] + ['Output Time Series'])
+                
+                # Plot each input time series
+                for i in range(n_inputs):
+                    fig.add_trace(
+                        go.Scatter(y=self.input_data.iloc[:,i], name=f"Input {i+1}"),
+                        row=i+1, col=1
+                    )
+                
+                # Plot output time series
                 fig.add_trace(
                     go.Scatter(y=self.output_data.iloc[:,0], name="Output"),
-                    row=2, col=1
+                    row=n_inputs+1, col=1
                 )
-                fig.update_layout(height=600, showlegend=True)
+                
+                fig.update_layout(height=300*(n_inputs+1), showlegend=True)
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # 4. 相关性分析
@@ -105,8 +148,12 @@ class DataPreprocessor:
                 
                 #### 互相关函数(CCF)
                 - CCF显示输入信号对输出信号的影响延迟
+                - CCF的横坐标表示延迟：
+                  - 正值：输入领先于输出的延迟（通常关注这部分）
+                  - 负值：输入滞后于输出的延迟（通常不考虑）
+                  - 0：无延迟
                 - CCF的峰值表明输入对输出的最强影响出现的延迟
-                - 选择CCF开始显著下降前的延迟作为输入延迟阶数
+                - 建议选择从0到CCF绝对值最大的正延迟位置作为输入延迟阶数
                 
                 #### 选择建议
                 - 较大的延迟会增加模型复杂度
@@ -120,36 +167,76 @@ class DataPreprocessor:
                 print(f"Output data for ACF: shape={self.output_data.iloc[:,0].values.shape}, non-null={np.sum(~np.isnan(self.output_data.iloc[:,0].values))}")
                 acf = self.compute_acf(self.output_data.iloc[:,0].values, max_lag)
                 
-                print(f"Computing CCF with max_lag={max_lag}")
-                print(f"Input data for CCF: shape={self.input_data.iloc[:,0].values.shape}, non-null={np.sum(~np.isnan(self.input_data.iloc[:,0].values))}")
-                ccf = self.compute_ccf(self.input_data.iloc[:,0].values, 
-                                     self.output_data.iloc[:,0].values, max_lag)
-                
+                # 为每个输入变量计算CCF
+                n_inputs = self.input_data.shape[1]
+                ccfs = []
+                max_ccf_lags = []  # Store the lag with the maximum absolute CCF value
+                max_ccf_values = []  # Store the maximum CCF values
+                for i in range(n_inputs):
+                    print(f"Computing CCF for input {i+1} with max_lag={max_lag}")
+                    ccf = self.compute_ccf(self.input_data.iloc[:,i].values, self.output_data.iloc[:,0].values, max_lag)
+                    ccfs.append(ccf)
+                    # Find the maximum absolute CCF value and its corresponding lag
+                    abs_ccf = np.abs(ccf)
+                    max_abs_idx = np.argmax(abs_ccf)
+                    max_ccf_lag = max_abs_idx - max_lag  # Convert to actual lag value
+                    max_ccf_value = ccf[max_abs_idx]  # Retain the original sign
+                    max_ccf_lags.append(max_ccf_lag)
+                    max_ccf_values.append(max_ccf_value)
+                    print(f"Input {i+1} - Max CCF: {max_ccf_value:.3f} at lag {max_ccf_lag}")
+
                 print("Creating correlation plots...")
-                fig = make_subplots(rows=2, cols=1,
-                                  subplot_titles=('Output Autocorrelation', 'Input-Output Cross-correlation'))
+                fig = make_subplots(rows=n_inputs+1, cols=1,
+                                  subplot_titles=['Output ACF'] + [f'Input {i+1} CCF' for i in range(n_inputs)])
+                
+                # Plot ACF
                 fig.add_trace(
-                    go.Bar(x=list(range(max_lag)), y=acf, name="ACF"),
+                    go.Bar(x=list(range(max_lag+1)), y=acf, name="ACF"),
                     row=1, col=1
                 )
-                fig.add_trace(
-                    go.Bar(x=list(range(max_lag)), y=ccf, name="CCF"),
-                    row=2, col=1
-                )
-                fig.update_layout(height=600, showlegend=True)
+                
+                # Plot CCFs
+                for i, ccf in enumerate(ccfs):
+                    trace = go.Bar(x=list(range(-max_lag, max_lag+1)), y=ccf, name=f"CCF (Input {i+1})")
+                    fig.add_trace(trace, row=i+2, col=1)
+                    # Add vertical lines to mark the maximum CCF position
+                    fig.add_vline(x=max_ccf_lags[i], line_dash="dash", line_color="red",
+                                  annotation_text=f"Max Correlation: {max_ccf_values[i]:.3f}", row=i+2, col=1)
+                    # Add vertical line to mark zero lag position
+                    fig.add_vline(x=0, line_dash="dash", line_color="gray",
+                                  annotation_text="Zero Lag", row=i+2, col=1)
+                
+                fig.update_layout(height=300*(n_inputs+1), showlegend=True)
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # 添加建议的lag值
-                suggested_lags = self.suggest_lags(acf, ccf)
-                st.markdown(f"""
-                ### 基于相关性分析的建议值
-                - 建议的输入延迟阶数: {suggested_lags['input']}
-                  - 这个值基于CCF显著相关的范围确定
-                - 建议的输出延迟阶数: {suggested_lags['output']}
-                  - 这个值基于ACF显著相关的范围确定
+                # 根据相关性分析给出建议
+                st.subheader("延迟阶数建议")
                 
-                > 注意：这些是基于统计分析的建议值，实际使用时可以根据系统特性和模型性能进行调整。
-                """)
+                # ACF分析建议
+                significant_acf_lags = np.where(np.abs(acf) > 0.2)[0]
+                suggested_output_lag = min(max(significant_acf_lags) if len(significant_acf_lags) > 0 else 2, 5)
+                st.write(f"基于ACF分析，建议输出延迟阶数: {suggested_output_lag}")
+                
+                # CCF分析建议
+                for i in range(n_inputs):
+                    st.write(f"输入{i+1}的CCF分析：")
+                    st.write(f"- 最大相关性 {max_ccf_values[i]:.3f} 出现在延迟 {max_ccf_lags[i]} 处")
+                    if max_ccf_lags[i] > 0:
+                        st.write(f"- 输入领先于输出 {max_ccf_lags[i]} 个时间步")
+                        st.write(f"- 建议的输入延迟阶数: {min(max_ccf_lags[i] + 1, 5)}")
+                    elif max_ccf_lags[i] < 0:
+                        st.write(f"- 输出领先于输入 {abs(max_ccf_lags[i])} 个时间步")
+                        st.write("- 建议从较小的延迟阶数(2-3)开始尝试，因为输入滞后于输出")
+                    else:
+                        st.write("- 最强相关性在零延迟处")
+                        st.write("- 建议使用较小的延迟阶数(1-2)")
+                    
+                    if max_ccf_values[i] > 0:
+                        st.write("- 呈正相关关系")
+                    else:
+                        st.write("- 呈负相关关系")
+                
+                print("=== 数据预览完成 ===")
                 
             except Exception as e:
                 print("Error in show_data_preview:", str(e))
