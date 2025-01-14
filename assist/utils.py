@@ -219,7 +219,7 @@ def plot_results(
     yhat=None,
     figsize=(8, 5),
     n=100,
-    style="seaborn-white",
+    style="seaborn-v0_8-white",
     facecolor="white",
     title="Free run simulation",
 ):
@@ -245,7 +245,7 @@ def plot_residues_correlation(
     *,
     figsize=(8, 5),
     n=100,
-    style="seaborn-white",
+    style="seaborn-v0_8-white",
     facecolor="white",
     title="Residual Analysis",
     ylabel="Correlation",
