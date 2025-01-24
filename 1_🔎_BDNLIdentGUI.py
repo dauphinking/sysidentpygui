@@ -1,8 +1,8 @@
 import streamlit as st
-# 设置页面标题
+
 st.set_page_config(page_title="BDNLIdentGUI", layout="wide")
 
-import debugpy; debugpy.breakpoint()  # 调试断点
+# import debugpy; debugpy.breakpoint()  # 调试断点
 from assist.translations import PAGE_TITLES
 import numpy as np
 import pandas as pd
