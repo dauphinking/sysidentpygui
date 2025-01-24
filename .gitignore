@@ -136,6 +136,9 @@ forms_teste.py
 /temp_figs/residues_fig_1.png
 /temp_figs/residues_fig_2.png
 /temp_figs/results_fig.png
+/example_data/
 
 # Docs related
 site/
+xdata3.csv
+ydata3.csv

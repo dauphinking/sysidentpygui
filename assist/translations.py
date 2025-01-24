@@ -3,7 +3,7 @@
 """
 
 PAGE_TITLES = {
-    "BDNLIdentGUI": "非线性动态系统辨识",
+    "BDNLIdentGUI": "线性动态系统辨识",
     "Data_Preprocessing": "数据预处理",
     "Load_your_model": "加载模型",
     "Simulate_a_predefined_model": "模型仿真"

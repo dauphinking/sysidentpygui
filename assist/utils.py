@@ -6,6 +6,42 @@ from PIL import Image
 from sysidentpy.utils.display_results import results
 import pandas as pd
 import inspect
+import matplotlib.font_manager as fm
+
+# 设置中文字体
+def set_chinese_font():
+    # 尝试多个常见的中文字体
+    chinese_fonts = ['Microsoft YaHei', 'SimHei', 'SimSun', 'NSimSun', 'FangSong', 'KaiTi']
+    font_found = False
+    
+    for font_name in chinese_fonts:
+        try:
+            fm.findfont(font_name)
+            plt.rcParams['font.family'] = font_name
+            font_found = True
+            break
+        except:
+            continue
+    
+    if not font_found:
+        print("Warning: No suitable Chinese font found. Using default font.")
+    
+    # 确保负号正确显示
+    plt.rcParams['axes.unicode_minus'] = False
+
+# 设置中文字体
+try:
+    # 尝试使用微软雅黑
+    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+except:
+    try:
+        # 尝试使用其他中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'SimSun', 'NSimSun', 'FangSong', 'KaiTi']
+    except:
+        print("Warning: Could not find Chinese fonts. Some characters may not display correctly.")
+
+# 设置负号的正确显示
+plt.rcParams['axes.unicode_minus'] = False
 
 
 def addlogo():
@@ -316,3 +352,174 @@ def get_model_eq(model):
     model_string = model_string.replace("(", "_{")
     model_string = model_string.replace(")", "}")
     return model_string
+
+
+def get_chinese_font():
+    """获取系统中可用的中文字体"""
+    fonts = []
+    for f in fm.findSystemFonts():
+        try:
+            font = fm.FontProperties(fname=f)
+            if any(name in font.get_name().lower() for name in ['simhei', 'simsun', 'microsoft yahei', 'dengxian']):
+                fonts.append(f)
+        except:
+            continue
+    return fonts[0] if fonts else None
+
+
+def plot_time_series(input_data, output_data):
+    """绘制输入输出时间序列图"""
+    plt.rcParams['axes.unicode_minus'] = False
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(input_data.index, input_data.values, label="Input")
+    ax.plot(output_data.index, output_data.values, label="Output")
+    
+    # 设置字体属性
+    font_prop = fm.FontProperties(family=['Microsoft YaHei', 'SimHei', 'SimSun'])
+    ax.set_title("Time Series", fontproperties=font_prop)
+    ax.set_xlabel("Samples", fontproperties=font_prop)
+    ax.set_ylabel("Value", fontproperties=font_prop)
+    ax.legend(prop=font_prop)
+    
+    return fig
+
+
+def plot_correlation_analysis(input_data, output_data, max_lag):
+    """相关性分析和绘图"""
+    plt.rcParams['axes.unicode_minus'] = False
+    font_prop = fm.FontProperties(family=['Microsoft YaHei', 'SimHei', 'SimSun'])
+    
+    # 创建图形和子图
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    
+    # 绘制自相关图
+    acf_values = compute_acf(output_data, max_lag)
+    ax1.stem(range(len(acf_values)), acf_values)
+    ax1.axhline(y=0, color='r', linestyle='-')
+    ax1.set_title("自相关函数", fontproperties=font_prop)
+    ax1.set_xlabel("滞后", fontproperties=font_prop)
+    ax1.set_ylabel("相关系数", fontproperties=font_prop)
+    
+    # 绘制互相关图
+    ccf_values = compute_ccf(input_data, output_data, max_lag)
+    ax2.stem(range(len(ccf_values)), ccf_values)
+    ax2.axhline(y=0, color='r', linestyle='-')
+    ax2.set_title("互相关函数", fontproperties=font_prop)
+    ax2.set_xlabel("滞后", fontproperties=font_prop)
+    ax2.set_ylabel("相关系数", fontproperties=font_prop)
+    
+    plt.tight_layout()
+    return fig
+
+
+def convert_arx_to_continuous(arx_params, Ts=0.1):
+    """将ARX模型参数转换为连续时间传递函数参数
+    
+    Args:
+        arx_params: 包含ARX模型参数的字典，格式为：
+            {
+                'a': [a1, a2, ...],  # 输出系数
+                'b': [b0, b1, ...],  # 输入系数
+                'delay': d           # 延迟（采样点数）
+            }
+        Ts: 采样时间，默认0.1秒
+        
+    Returns:
+        dict: 包含连续时间模型参数的字典
+            对于FOPDT: {'K': gain, 'tau': time_constant, 'theta': delay}
+            对于SOPDT: {'K': gain, 'tau1': time_constant1, 'tau2': time_constant2, 'theta': delay}
+    """
+    import numpy as np
+    from scipy import signal
+    
+    # 构建离散传递函数的分子分母
+    b = np.array(arx_params['b'])
+    a = np.array([1.0] + arx_params['a'])
+    
+    # 创建离散传递函数
+    dt_sys = signal.TransferFunction(b, a, dt=Ts)
+    
+    # 转换为连续时间传递函数
+    ct_sys = signal.cont2discrete((dt_sys.num, dt_sys.den), Ts, method='tustin')[0]
+    
+    # 获取极点和零点
+    poles = np.roots(ct_sys[1])
+    
+    # 计算增益
+    K = np.sum(b) / (1 + np.sum(arx_params['a']))
+    
+    # 计算时滞
+    theta = arx_params['delay'] * Ts
+    
+    if len(poles) == 1:  # FOPDT
+        tau = -1.0 / poles[0]
+        return {
+            'model_type': 'FOPDT',
+            'K': K,
+            'tau': tau,
+            'theta': theta
+        }
+    else:  # SOPDT
+        tau1 = -1.0 / poles[0]
+        tau2 = -1.0 / poles[1]
+        return {
+            'model_type': 'SOPDT',
+            'K': K,
+            'tau1': tau1,
+            'tau2': tau2,
+            'theta': theta
+        }
+
+def estimate_arx_model(x_data, y_data, na=2, nb=2, Ts=0.1):
+    """使用最小二乘法估计ARX模型参数
+    
+    Args:
+        x_data: 输入数据
+        y_data: 输出数据
+        na: AR阶数
+        nb: 输入阶数
+        Ts: 采样时间
+        
+    Returns:
+        dict: ARX模型参数
+    """
+    import numpy as np
+    from scipy import signal
+    
+    # 估计时滞
+    corr = signal.correlate(y_data - np.mean(y_data),
+                           x_data - np.mean(x_data),
+                           mode='full')
+    delay = len(corr)//2 - np.argmax(corr)
+    delay = max(0, delay)  # 确保延迟非负
+    
+    # 构建回归矩阵
+    N = len(y_data)
+    max_lag = max(na, nb)
+    phi = np.zeros((N-max_lag, na+nb))
+    
+    # 填充AR项
+    for i in range(na):
+        phi[:, i] = -y_data[max_lag-i-1:N-i-1]
+    
+    # 填充输入项
+    for i in range(nb):
+        if i + delay < len(x_data):
+            phi[:, na+i] = x_data[max_lag-i-1-delay:N-i-1-delay]
+    
+    # 输出向量
+    Y = y_data[max_lag:]
+    
+    # 最小二乘估计
+    theta = np.linalg.lstsq(phi, Y, rcond=None)[0]
+    
+    # 分离参数
+    a_params = theta[:na].tolist()
+    b_params = theta[na:].tolist()
+    
+    return {
+        'a': a_params,
+        'b': b_params,
+        'delay': delay
+    }

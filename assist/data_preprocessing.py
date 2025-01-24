@@ -21,67 +21,85 @@ class DataPreprocessor:
     def load_data(self):
         """从session state获取数据"""
         print("\n=== 开始加载数据 ===")
-        if "x_data" in st.session_state:
-            print(f"x_data found in session state: {st.session_state['x_data']}")
-        if "y_data" in st.session_state:
-            print(f"y_data found in session state: {st.session_state['y_data']}")
-            
+        
         if "x_data" in st.session_state and st.session_state["x_data"] is not None:
             try:
                 # 读取输入数据
-                data = st.session_state["x_data"].getvalue().decode('utf-8').splitlines()
-                data = [line.strip() for line in data if line.strip()]  # 去除空行和空白
-                print(f"First line of input data: {data[0]}")
+                file = st.session_state["x_data"]
+                file.seek(0)
                 
-                if '\t' in data[0]:  # 多列数据，用制表符分隔
-                    print("Detected multi-column data")
-                    values = []
-                    for line in data:
-                        try:
-                            # 使用pandas直接读取制表符分隔的字符串
-                            row = pd.read_csv(StringIO(line), sep='\t', header=None).iloc[0].values
-                            values.append(row)
-                        except Exception as e:
-                            print(f"Error parsing line: {line}")
-                            raise e
-                    self.input_data = pd.DataFrame(values)
-                    print("Loaded multi-column input data")
-                else:  # 单列数据
-                    print("Detected single-column data")
-                    values = []
-                    for line in data:
-                        try:
-                            values.append(float(line))
-                        except ValueError as e:
-                            print(f"Error parsing line: {line}")
-                            raise e
-                    self.input_data = pd.DataFrame(values, columns=['value'])
-                    print("Loaded single-column input data")
-                print("Input data shape:", self.input_data.shape)
-                print("Input data head:\n", self.input_data.head())
+                # 尝试不同的分隔符
+                for sep in ['\t', ',', ';']:
+                    try:
+                        file.seek(0)
+                        # 先读取第一行检查是否包含字母
+                        first_line = pd.read_csv(file, sep=sep, nrows=1, header=None)
+                        file.seek(0)
+                        
+                        # 检查第一行是否包含字母
+                        has_header = first_line.astype(str).apply(lambda x: x.str.contains('[A-Za-z]')).any().any()
+                        
+                        # 根据是否有header决定如何读取
+                        if has_header:
+                            self.input_data = pd.read_csv(file, sep=sep, header=0, float_precision='high')
+                        else:
+                            self.input_data = pd.read_csv(file, sep=sep, header=None, float_precision='high')
+                        
+                        # 确保数据为float类型
+                        self.input_data = self.input_data.astype(float)
+                        
+                        print(f"\n成功使用分隔符 '{sep}' 读取输入数据")
+                        print("输入数据形状:", self.input_data.shape)
+                        print("输入数据预览:\n", self.input_data.head())
+                        print("输入数据类型:\n", self.input_data.dtypes)
+                        break
+                    except Exception as e:
+                        print(f"尝试分隔符 '{sep}' 失败: {str(e)}")
+                        continue
+                        
             except Exception as e:
-                print("Error loading input data:", str(e))
+                print(f"读取输入数据时出错: {str(e)}")
                 self.input_data = None
                 
         if "y_data" in st.session_state and st.session_state["y_data"] is not None:
             try:
                 # 读取输出数据
-                data = st.session_state["y_data"].getvalue().decode('utf-8').splitlines()
-                data = [line.strip() for line in data if line.strip()]  # 去除空行和空白
-                values = []
-                for line in data:
+                file = st.session_state["y_data"]
+                file.seek(0)
+                
+                # 尝试不同的分隔符
+                for sep in ['\t', ',', ';']:
                     try:
-                        values.append(float(line))
-                    except ValueError as e:
-                        print(f"Error parsing line: {line}")
-                        raise e
-                self.output_data = pd.DataFrame(values, columns=['value'])
-                print("Output data loaded successfully")
-                print("Output data shape:", self.output_data.shape)
-                print("Output data head:\n", self.output_data.head())
+                        file.seek(0)
+                        # 先读取第一行检查是否包含字母
+                        first_line = pd.read_csv(file, sep=sep, nrows=1, header=None)
+                        file.seek(0)
+                        
+                        # 检查第一行是否包含字母
+                        has_header = first_line.astype(str).apply(lambda x: x.str.contains('[A-Za-z]')).any().any()
+                        
+                        # 根据是否有header决定如何读取
+                        if has_header:
+                            self.output_data = pd.read_csv(file, sep=sep, header=0, float_precision='high')
+                        else:
+                            self.output_data = pd.read_csv(file, sep=sep, header=None, float_precision='high')
+                        
+                        # 确保数据为float类型
+                        self.output_data = self.output_data.astype(float)
+                        
+                        print(f"\n成功使用分隔符 '{sep}' 读取输出数据")
+                        print("输出数据形状:", self.output_data.shape)
+                        print("输出数据预览:\n", self.output_data.head())
+                        print("输出数据类型:\n", self.output_data.dtypes)
+                        break
+                    except Exception as e:
+                        print(f"尝试分隔符 '{sep}' 失败: {str(e)}")
+                        continue
+                        
             except Exception as e:
-                print("Error loading output data:", str(e))
+                print(f"读取输出数据时出错: {str(e)}")
                 self.output_data = None
+                
         print("=== 数据加载完成 ===\n")
     
     def show_data_preview(self):
@@ -94,9 +112,6 @@ class DataPreprocessor:
             print("Warning: output_data is None")
             return
             
-        print(f"Input data shape: {self.input_data.shape}")
-        print(f"Output data shape: {self.output_data.shape}")
-        
         if self.input_data is not None and self.output_data is not None:
             st.subheader("数据预览和分析")
             
@@ -105,32 +120,70 @@ class DataPreprocessor:
                 print("Computing data statistics...")
                 col1, col2 = st.columns(2)
                 with col1:
+                    st.write("输入数据：")
+                    # 重命名列
+                    input_display = self.input_data.copy()
+                    input_display.index = range(0, len(input_display))
+                    input_display.columns = [f'x{i}' for i in range(input_display.shape[1])]
+                    st.dataframe(input_display.head())
                     st.write("输入数据统计：")
-                    st.dataframe(self.input_data.describe())
+                    st.dataframe(input_display.describe())
                 with col2:
+                    st.write("输出数据：")
+                    # 重命名列
+                    output_display = self.output_data.copy()
+                    output_display.index = range(0, len(output_display))
+                    output_display.columns = [f'y{i}' for i in range(output_display.shape[1])]
+                    st.dataframe(output_display.head())
                     st.write("输出数据统计：")
-                    st.dataframe(self.output_data.describe())
+                    st.dataframe(output_display.describe())
                 
                 # 2. 时间序列图
                 print("Creating time series plots...")
-                n_inputs = self.input_data.shape[1]
-                fig = make_subplots(rows=n_inputs+1, cols=1,
-                                  subplot_titles=['Input Time Series ' + str(i+1) for i in range(n_inputs)] + ['Output Time Series'])
+                st.subheader("时间序列图")
                 
-                # Plot each input time series
+                # 计算需要的子图数量
+                n_inputs = input_display.shape[1]
+                fig = make_subplots(rows=n_inputs+1, cols=1,
+                                  subplot_titles=['Input {}'.format(i+1) for i in range(n_inputs)] + ['Output'],
+                                  shared_xaxes=True,
+                                  vertical_spacing=0.1)
+                
+                # 绘制每个输入时间序列
                 for i in range(n_inputs):
                     fig.add_trace(
-                        go.Scatter(y=self.input_data.iloc[:,i], name=f"Input {i+1}"),
+                        go.Scatter(x=input_display.index, y=input_display.iloc[:,i], 
+                                  name=f"Input {i+1}", mode='lines'),
                         row=i+1, col=1
                     )
                 
-                # Plot output time series
+                # 绘制输出时间序列
                 fig.add_trace(
-                    go.Scatter(y=self.output_data.iloc[:,0], name="Output"),
+                    go.Scatter(x=output_display.index, y=output_display.iloc[:,0], 
+                              name="Output", mode='lines'),
                     row=n_inputs+1, col=1
                 )
                 
-                fig.update_layout(height=300*(n_inputs+1), showlegend=True)
+                # 更新布局
+                fig.update_layout(
+                    height=300*(n_inputs+1),
+                    showlegend=True,
+                    legend=dict(
+                        yanchor="top",
+                        y=0.99,
+                        xanchor="right",
+                        x=0.99
+                    )
+                )
+                
+                # 更新x轴标签
+                fig.update_xaxes(title_text="Sample Index", row=n_inputs+1, col=1)
+                
+                # 更新y轴标签
+                for i in range(n_inputs):
+                    fig.update_yaxes(title_text=f"Input {i+1} Value", row=i+1, col=1)
+                fig.update_yaxes(title_text="Output Value", row=n_inputs+1, col=1)
+                
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # 4. 相关性分析
@@ -187,7 +240,7 @@ class DataPreprocessor:
 
                 print("Creating correlation plots...")
                 fig = make_subplots(rows=n_inputs+1, cols=1,
-                                  subplot_titles=['Output ACF'] + [f'Input {i+1} CCF' for i in range(n_inputs)])
+                                   subplot_titles=['Output ACF'] + [f'Input {i+1} CCF' for i in range(n_inputs)])
                 
                 # Plot ACF
                 fig.add_trace(
@@ -201,10 +254,10 @@ class DataPreprocessor:
                     fig.add_trace(trace, row=i+2, col=1)
                     # Add vertical lines to mark the maximum CCF position
                     fig.add_vline(x=max_ccf_lags[i], line_dash="dash", line_color="red",
-                                  annotation_text=f"Max Correlation: {max_ccf_values[i]:.3f}", row=i+2, col=1)
+                                   annotation_text=f"Max Correlation: {max_ccf_values[i]:.3f}", row=i+2, col=1)
                     # Add vertical line to mark zero lag position
                     fig.add_vline(x=0, line_dash="dash", line_color="gray",
-                                  annotation_text="Zero Lag", row=i+2, col=1)
+                                   annotation_text="Zero Lag", row=i+2, col=1)
                 
                 fig.update_layout(height=300*(n_inputs+1), showlegend=True)
                 st.plotly_chart(fig, use_container_width=True)
@@ -236,10 +289,10 @@ class DataPreprocessor:
                     else:
                         st.write("- 呈负相关关系")
                 
-                print("=== 数据预览完成 ===")
-                
             except Exception as e:
                 print("Error in show_data_preview:", str(e))
+                print("Error type:", type(e))
+                print("Error args:", e.args)
                 st.error(f"Error processing data: {str(e)}")
         print("=== 数据预览完成 ===\n")
     
@@ -249,7 +302,7 @@ class DataPreprocessor:
                           data - np.mean(data),
                           mode='full')
         acf = acf[len(acf)//2:] / acf[len(acf)//2]
-        return acf[:max_lag]
+        return acf[:max_lag+1]
     
     def compute_ccf(self, input_data, output_data, max_lag=20):
         """计算互相关函数"""
@@ -257,15 +310,5 @@ class DataPreprocessor:
                           input_data - np.mean(input_data),
                           mode='full')
         ccf = ccf / (len(input_data) * np.std(input_data) * np.std(output_data))
-        return ccf[len(ccf)//2:len(ccf)//2+max_lag]
-    
-    def suggest_lags(self, acf, ccf, threshold=0.2):
-        """基于相关性分析建议lag值"""
-        # 基于显著相关性确定lag值
-        input_lag = max(2, len([x for x in ccf if abs(x) > threshold]))
-        output_lag = max(2, len([x for x in acf[1:] if abs(x) > threshold]))
-        
-        return {
-            'input': min(input_lag, 10),  # 限制最大lag为10
-            'output': min(output_lag, 10)
-        } 
+        mid = len(ccf)//2
+        return ccf[mid-max_lag:mid+max_lag+1] 

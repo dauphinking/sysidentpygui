@@ -1,0 +1,21 @@
+import numpy as np
+import pandas as pd
+
+# 设置随机种子以确保结果可重复
+np.random.seed(42)
+
+# 生成 x 数据
+x = np.linspace(0, 10, 100)
+
+# 生成 y 数据，假设线性关系 y = 2x + 3，并添加一些噪声
+noise = np.random.normal(0, 0.5, x.shape)
+y = 2 * x + 3 + noise
+
+# 将数据保存为 CSV 文件
+x_data = pd.DataFrame(x, columns=['x'])
+y_data = pd.DataFrame(y, columns=['y'])
+
+x_data.to_csv('xdata3.csv', index=False)
+y_data.to_csv('ydata3.csv', index=False)
+
+print("xdata3.csv and ydata3.csv have been generated.")

@@ -1,10 +1,15 @@
 import streamlit as st
+# 设置页面标题
+st.set_page_config(page_title="BDNLIdentGUI", layout="wide")
 
-st.set_page_config(
-    page_title="非线性动态系统辨识",  # 这个会显示在浏览器标签页
-    page_icon="🔎",
-    layout="wide",
-)
+import debugpy; debugpy.breakpoint()  # 调试断点
+from assist.translations import PAGE_TITLES
+import numpy as np
+import pandas as pd
+from assist.pagedesign import load_data_section
+from assist.data_preprocessing import DataPreprocessor
+from sklearn.metrics import r2_score, mean_squared_error
+import matplotlib.pyplot as plt
 
 import os
 import pandas as pd
@@ -33,7 +38,7 @@ import pickle as pk
 from math import floor
 import platform
 
-st.title("非线性动态系统辨识")  # 这个会显示在页面顶部
+st.title("动态系统辨识")  # 这个会显示在页面顶部
 
 utils.addlogo()
 utils.removemenu()
@@ -56,14 +61,88 @@ with tab1:
     col, esp0, col0 = st.columns([5, 1, 5])
 
     with col:
-        st.file_uploader("输入数据", key="x_data", help="拖拽或点击上传CSV格式文件")
-        if st.session_state["x_data"] != None:
-            data_x = pd.read_csv(st.session_state["x_data"], sep="\t")
+        st.file_uploader("输入数据", key="x_data", type=["csv", "xls", "xlsx"], help="拖拽或点击上传CSV或Excel格式文件")
+        if st.session_state["x_data"] is not None:
+            try:
+                file_extension = st.session_state["x_data"].name.split('.')[-1].lower()
+                
+                if file_extension in ['xls', 'xlsx']:
+                    # 读取Excel文件
+                    data_x = pd.read_excel(st.session_state["x_data"])
+                else:
+                    # 尝试不同的编码和分隔符读取CSV文件
+                    encodings = ['utf-8', 'gbk', 'gb2312', 'iso-8859-1']
+                    separators = ['\t', ',', ';']
+                    success = False
+                    
+                    for encoding in encodings:
+                        if success:
+                            break
+                        try:
+                            for sep in separators:
+                                try:
+                                    st.session_state["x_data"].seek(0)
+                                    data_x = pd.read_csv(st.session_state["x_data"], 
+                                                       sep=sep, 
+                                                       encoding=encoding)
+                                    success = True
+                                    break
+                                except:
+                                    continue
+                        except:
+                            continue
+                    
+                    if not success:
+                        raise Exception("无法读取文件，请检查文件格式和编码")
+                
+                st.write("输入数据预览：")
+                st.write(data_x.head())
+                
+            except Exception as e:
+                st.error(f"读取输入数据时出错: {str(e)}")
+                st.info("请确保文件格式正确（CSV格式使用UTF-8编码，或使用Excel格式）")
 
     with col0:
-        st.file_uploader("输出数据", key="y_data", help="拖拽或点击上传CSV格式文件")
-        if st.session_state["y_data"] != None:
-            data_y = pd.read_csv(st.session_state["y_data"], sep="\t")
+        st.file_uploader("输出数据", key="y_data", type=["csv", "xls", "xlsx"], help="拖拽或点击上传CSV或Excel格式文件")
+        if st.session_state["y_data"] is not None:
+            try:
+                file_extension = st.session_state["y_data"].name.split('.')[-1].lower()
+                
+                if file_extension in ['xls', 'xlsx']:
+                    # 读取Excel文件
+                    data_y = pd.read_excel(st.session_state["y_data"])
+                else:
+                    # 尝试不同的编码和分隔符读取CSV文件
+                    encodings = ['utf-8', 'gbk', 'gb2312', 'iso-8859-1']
+                    separators = ['\t', ',', ';']
+                    success = False
+                    
+                    for encoding in encodings:
+                        if success:
+                            break
+                        try:
+                            for sep in separators:
+                                try:
+                                    st.session_state["y_data"].seek(0)
+                                    data_y = pd.read_csv(st.session_state["y_data"], 
+                                                       sep=sep, 
+                                                       encoding=encoding)
+                                    success = True
+                                    break
+                                except:
+                                    continue
+                        except:
+                            continue
+                    
+                    if not success:
+                        raise Exception("无法读取文件，请检查文件格式和编码")
+                
+                st.write("输出数据预览：")
+                st.write(data_y.head())
+                
+            except Exception as e:
+                st.error(f"读取输出数据时出错: {str(e)}")
+                st.info("请确保文件格式正确（CSV格式使用UTF-8编码，或使用Excel格式）")
 
     col1, esp1, esp2 = st.columns([2, 1, 7])
     with col1:
@@ -102,483 +181,137 @@ with tab1:
         )
 
 with tab2:  # 数据预处理 tab
-    from assist.data_preprocessing import DataPreprocessor
-    
-    preprocessor = DataPreprocessor()
-    preprocessor.load_data()
-    
-    if "x_data" in st.session_state and "y_data" in st.session_state and \
-       st.session_state["x_data"] is not None and st.session_state["y_data"] is not None:
+    if 'x_data' in st.session_state and 'y_data' in st.session_state:
+        preprocessor = DataPreprocessor()
+        preprocessor.load_data()  # 不传递参数，让它从session_state读取数据
         preprocessor.show_data_preview()
-    else:
-        st.warning("请先在'数据加载'页面上传数据")
 
 with tab3:  # Model Setup tab
-    if st.session_state["x_data"] != None:
+    if st.session_state["x_data"] is not None:
         col2, esp3, esp4 = st.columns([2, 1, 1.65])
         with col2:
-            st.selectbox(
-                "基函数类型", basis_function_list, key="basis_function_key", index=1
-            )
-
-            for i in range(
-                len(basis_function_list)
-            ):  # pra saber quantos widgets devem ser criados, é preciso que a gente saiba qual basis function foi escolhida,
-                # então a variável i serve pra checarmos isso
-
-                if (
-                    st.session_state["basis_function_key"] == basis_function_list[i]
-                ):  # se a basis function escolhida for a mesma da iteração atual, segundo i, roda o código
-                    # criando os widgets
-                    wcont1 = (
-                        0  # variável de assistência pra criar os widgets recursivamente
-                    )
-                    key_list = list(
-                        basis_function_parameter_list[i]
-                    )  # essa lista das keys do dict de parametros, serve para acessar os values e ser a label dos widgets
-                    while wcont1 < len(
-                        utils.dict_values_to_list(basis_function_parameter_list[i])
-                    ):  # criando os widgets recursivamente, e atribuindo os nomes p/ os widgets
-                        k = "bf_par_" + str(wcont1)
-
-                        if isinstance(
-                            basis_function_parameter_list[i][key_list[wcont1]], int
-                        ):
-                            if isinstance(
-                                basis_function_parameter_list[i][key_list[wcont1]], bool
-                            ):
-                                st.write(utils.adjust_string(key_list[wcont1]))
-                                st.checkbox(
-                                    "",
-                                    key=k,
-                                    value=basis_function_parameter_list[i][
-                                        key_list[wcont1]
-                                    ],
-                                )  # no checkbox, a label é automaticamente a direita, então
-                                # chamo antes em cima
-                            else:
-                                st.number_input(
-                                    utils.adjust_string(key_list[wcont1]),
-                                    key=k,
-                                    min_value=0,
-                                    value=basis_function_parameter_list[i][
-                                        key_list[wcont1]
-                                    ],
-                                )
-
-                        if isinstance(
-                            basis_function_parameter_list[i][key_list[wcont1]], float
-                        ):
-                            st.number_input(
-                                utils.adjust_string(key_list[wcont1]),
-                                key=k,
-                                min_value=0.0,
-                                value=basis_function_parameter_list[i][
-                                    key_list[wcont1]
-                                ],
-                                format="%5.3e",
-                                step=basis_function_parameter_list[i][key_list[wcont1]]
-                                / 10,
-                            )
-
-                        if isinstance(
-                            basis_function_parameter_list[i][key_list[wcont1]], str
-                        ):
-                            st.write("string")
-
-                        wcont1 = wcont1 + 1
-
-                    bf_par_dict = dict(
-                        basis_function_parameter_list[i]
-                    )  # aqui ele copia o dicionario base dos parametros, para assim substituir com os valores novos
-                    # obtidos no widget
-                    bf_par_list = (
-                        list()
-                    )  # lista p/ pegar as keys dos widgets e podermos atribuir os valores corretos ao dict acima
-
-                    if utils.occurrence_check("bf_par_", list(st.session_state)) != len(
-                        utils.dict_values_to_list(basis_function_parameter_list[i])
-                    ):
-                        # quando troca de basis function, se o numero de parametros é menor, dá um erro porque tem keys a mais de session state
-                        # aqui, apago os excedentes
-                        for key in utils.session_state_cut(
-                            st.session_state,
-                            "bf_par_",
-                            len(
-                                utils.dict_values_to_list(
-                                    basis_function_parameter_list[i]
-                                )
-                            ),
-                        ):
-                            del st.session_state[key]
-
-                    for j in range(
-                        len(list(st.session_state))
-                    ):  # pegando as keys de session state que tem o nome base para ser widget dos parametros de basis function
-                        if list(st.session_state)[j].startswith("bf_par_"):
-                            bf_par_list.append(list(st.session_state)[j])
-
-                    bf_par_list = sorted(
-                        bf_par_list
-                    )  # a lista precisa estar em ordem alfabética para o próximo bloco
-
-                    for j in range(
-                        len(bf_par_list)
-                    ):  # refazendo o dicionário para os argumentos do objeto da basis function
-                        bf_par_dict[
-                            list(basis_function_parameter_list[i])[j]
-                        ] = st.session_state[bf_par_list[j]]
-            st.markdown("""---""")
-
-            bf_module = importlib.import_module(
-                "sysidentpy.basis_function._basis_function"
-            )  # pegando o arquivo onde tá a classe da basis function
-            bf = utils.str_to_class(st.session_state["basis_function_key"], bf_module)(
-                **bf_par_dict
-            )  # instanciando a basis function
-
-            col3, esp5, esp6 = st.columns([3, 1, 1])
-            with col3:
+            # ARX模型设置
+            st.markdown("---")  # 分隔线
+            st.subheader("ARX模型设置")
+            
+            # 基函数和阶数设置
+            col_arx1, col_arx2, col_arx3 = st.columns(3)
+            with col_arx1:
                 st.selectbox(
-                    "模型结构选择算法",
-                    list(model_struc_dict),
-                    key="model_struc_select_key",
-                    index=3,
+                    "基函数类型", basis_function_list, key="basis_function_key", index=1
                 )
+            with col_arx2:
+                degree = st.number_input("多项式阶数", min_value=1, max_value=5, value=1)
+            with col_arx3:
+                st.write("基函数参数")
+                for i in range(len(basis_function_list)):
+                    if st.session_state["basis_function_key"] == basis_function_list[i]:
+                        wcont1 = 0
+                        key_list = list(basis_function_parameter_list[i])
+                        while wcont1 < len(utils.dict_values_to_list(basis_function_parameter_list[i])):
+                            st.number_input(
+                                key_list[wcont1],
+                                value=utils.dict_values_to_list(basis_function_parameter_list[i])[wcont1],
+                                key=f"basis_function_parameter_{wcont1}",
+                            )
+                            wcont1 += 1
+            
+            # 导入基函数模块
+            bf_module = importlib.import_module("sysidentpy.basis_function._basis_function")
+            
+            # 创建基函数参数字典
+            basis_params = {}
+            for i in range(len(key_list)):
+                param_key = key_list[i]
+                param_value = st.session_state[f"basis_function_parameter_{i}"]
+                basis_params[param_key] = param_value
+            
+            # 实例化基函数
+            bf = utils.str_to_class(st.session_state["basis_function_key"], bf_module)(**basis_params)
 
-            col4, esp7, esp8 = st.columns([3, 1, 2.2])
-            with col4:
-                for i in range(len(model_struc_dict)):
-                    if (
-                        st.session_state["model_struc_select_key"]
-                        == list(model_struc_dict)[i]
-                    ):
-                        wcont2 = 0
-                        key_list = list(model_struc_selec_parameter_list[i])
-                        while wcont2 < len(
-                            utils.dict_values_to_list(model_struc_selec_parameter_list[i])
-                        ):
-                            k = "mss_par_" + str(wcont2)
-                            if isinstance(
-                                model_struc_selec_parameter_list[i][key_list[wcont2]], int
-                            ):
-                                if isinstance(
-                                    model_struc_selec_parameter_list[i][key_list[wcont2]],
-                                    bool,
-                                ):
-                                    st.write(utils.adjust_string(key_list[wcont2]))
-                                    st.checkbox(
-                                        "",
-                                        key=k,
-                                        value=model_struc_selec_parameter_list[i][
-                                            key_list[wcont2]
-                                        ],
-                                    )
-                                else:
-                                    if (
-                                        model_struc_selec_parameter_list[i][
-                                            key_list[wcont2]
-                                        ]
-                                        < 0
-                                    ):
-                                        st.number_input(
-                                            utils.adjust_string(key_list[wcont2]),
-                                            key=k,
-                                            min_value=-50,
-                                            value=model_struc_selec_parameter_list[i][
-                                                key_list[wcont2]
-                                            ],
-                                        )
-                                    else:
-                                        if key_list[wcont2] == "xlag":
-                                            if x_train.shape[1] == 1:
-                                                st.number_input(
-                                                    utils.adjust_string(key_list[wcont2]),
-                                                    key="x_lag",
-                                                    min_value=1,
-                                                    value=model_struc_selec_parameter_list[
-                                                        i
-                                                    ][key_list[wcont2]],
-                                                )
-                                                st.multiselect(
-                                                    "Select the desired lags",
-                                                    utils.get_lags_list(
-                                                        st.session_state["x_lag"]
-                                                    ),
-                                                    default=utils.get_lags_list(
-                                                        st.session_state["x_lag"]
-                                                    ),
-                                                    key=k,
-                                                )
-                                            else:
-                                                st.session_state[k] = list()
-                                                for n_inputs in range(x_train.shape[1]):
-                                                    st.number_input(
-                                                        utils.adjust_string(
-                                                            key_list[wcont2]
-                                                        )
-                                                        + " "
-                                                        + str(n_inputs + 1),
-                                                        key="x_lag_" + str(n_inputs + 1),
-                                                        min_value=1,
-                                                        value=model_struc_selec_parameter_list[
-                                                            i
-                                                        ][
-                                                            key_list[wcont2]
-                                                        ],
-                                                    )
-                                                    st.multiselect(
-                                                        "Select the desired lags",
-                                                        utils.get_lags_list(
-                                                            st.session_state[
-                                                                "x_lag_" + str(n_inputs + 1)
-                                                            ]
-                                                        ),
-                                                        default=utils.get_lags_list(
-                                                            st.session_state[
-                                                                "x_lag_" + str(n_inputs + 1)
-                                                            ]
-                                                        ),
-                                                        key="lags_" + str(n_inputs + 1),
-                                                    )
-                                                    st.session_state[k].append(
-                                                        st.session_state[
-                                                            "lags_" + str(n_inputs + 1)
-                                                        ]
-                                                    )
-                                        else:
-                                            if key_list[wcont2] == "ylag":
-                                                st.number_input(
-                                                    utils.adjust_string(key_list[wcont2]),
-                                                    key="y_lag",
-                                                    min_value=1,
-                                                    value=model_struc_selec_parameter_list[
-                                                        i
-                                                    ][key_list[wcont2]],
-                                                )
-                                                st.multiselect(
-                                                    "Select the desired lags",
-                                                    utils.get_lags_list(
-                                                        st.session_state["y_lag"]
-                                                    ),
-                                                    default=utils.get_lags_list(
-                                                        st.session_state["y_lag"]
-                                                    ),
-                                                    key=k,
-                                                )
-                                            else:
-                                                st.number_input(
-                                                    utils.adjust_string(key_list[wcont2]),
-                                                    key=k,
-                                                    min_value=0,
-                                                    value=model_struc_selec_parameter_list[
-                                                        i
-                                                    ][key_list[wcont2]],
-                                                )
-
-                            if (
-                                model_struc_selec_parameter_list[i][key_list[wcont2]]
-                                is None
-                            ):
-                                if (
-                                    key_list[wcont2] == "basis_function"
-                                ):  # a basis function é escolhida antes, então não precisamos do widget aqui
-                                    pass
-                                elif key_list[wcont2] == "n_terms":
-                                    if k not in st.session_state:
-                                        st.session_state[
-                                            k
-                                        ] = model_struc_selec_parameter_list[i][
-                                            key_list[wcont2]
-                                        ]
-                                    if "n_terms" in st.session_state:
-                                        st.session_state[k] = st.session_state["n_terms"]
-                                elif key_list[wcont2] == "steps_ahead":
-                                    if k not in st.session_state:
-                                        st.session_state[
-                                            k
-                                        ] = model_struc_selec_parameter_list[i][
-                                            key_list[wcont2]
-                                        ]
-                                    if "steps_aheadmss" in st.session_state:
-                                        st.session_state[k] = st.session_state[
-                                            "steps_aheadmss"
-                                        ]
-                                    st.write(utils.adjust_string(key_list[wcont2]))
-                                    st.checkbox(" ", key="sa_c")
-                                elif key_list[wcont2] == "random_state":
-                                    if k not in st.session_state:
-                                        st.session_state[
-                                            k
-                                        ] = model_struc_selec_parameter_list[i][
-                                            key_list[wcont2]
-                                        ]
-                                    if "random_statemss" in st.session_state:
-                                        st.session_state[k] = st.session_state[
-                                            "random_statemss"
-                                        ]
-                                    st.write(utils.adjust_string(key_list[wcont2]))
-                                    st.checkbox(" ", key="rs_c")
-                                else:
-                                    st.write(key_list[wcont2])
-                                    if st.checkbox(""):
-                                        st.write("")
-                                    st.write("None Type here")
-
-                            if isinstance(
-                                model_struc_selec_parameter_list[i][key_list[wcont2]], float
-                            ):
-                                if (
-                                    model_struc_selec_parameter_list[i][key_list[wcont2]]
-                                    < 0.0
-                                ):
-                                    st.number_input(
-                                        utils.adjust_string(key_list[wcont2]),
-                                        key=k,
-                                        min_value=-50.0,
-                                        value=model_struc_selec_parameter_list[i][
-                                            key_list[wcont2]
-                                        ],
-                                        format="%5.3e",
-                                        step=model_struc_selec_parameter_list[i][
-                                            key_list[wcont2]
-                                        ]
-                                        / 10,
-                                    )
-                                else:
-                                    if key_list[wcont2] == "p":
-                                        st.number_input(
-                                            utils.adjust_string(key_list[wcont2]),
-                                            key=k,
-                                            min_value=0.0,
-                                            value=1.797e307,
-                                            format="%5.3e",
-                                            step=1.797e307 / 10,
-                                        )
-                                    else:
-                                        st.number_input(
-                                            utils.adjust_string(key_list[wcont2]),
-                                            key=k,
-                                            min_value=0.0,
-                                            value=model_struc_selec_parameter_list[i][
-                                                key_list[wcont2]
-                                            ],
-                                            format="%5.3e",
-                                            step=0.5,
-                                        )
-
-                            if isinstance(
-                                model_struc_selec_parameter_list[i][key_list[wcont2]], str
-                            ):  # os valores padrão não vem do dicionário externo, porque o valor padrão é o primeiro elemento da lista que passamos como opções
-                                if key_list[wcont2] == "info_criteria":
-                                    st.selectbox(
-                                        utils.adjust_string(key_list[wcont2]),
-                                        ic_list,
-                                        key=k,
-                                    )
-                                if key_list[wcont2] == "estimator":
-                                    st.selectbox(
-                                        utils.adjust_string(key_list[wcont2]),
-                                        estimators_list,
-                                        key=k,
-                                    )
-                                if key_list[wcont2] == "model_type":
-                                    st.selectbox(
-                                        utils.adjust_string(key_list[wcont2]),
-                                        model_type_list,
-                                        key=k,
-                                    )
-                                if key_list[wcont2] == "loss_func":
-                                    st.selectbox(
-                                        utils.adjust_string(key_list[wcont2]),
-                                        los_func_list,
-                                        key=k,
-                                    )
-                                if key_list[wcont2] == "mutual_information_estimator":
-                                    st.selectbox(
-                                        utils.adjust_string(key_list[wcont2]),
-                                        ["mutual_information_knn"],
-                                        key=k,
-                                    )
-
-                            if (
-                                key_list[wcont2] == "order_selection"
-                            ):  # se esse parametro for falso, um n_terms tem que ser escolhido
-                                if st.session_state[k] == False:
-                                    st.number_input(
-                                        utils.adjust_string("n_terms"),
-                                        key="n_terms",
-                                        min_value=1,
-                                    )
-                                else:
-                                    st.session_state[
-                                        "n_terms"
-                                    ] = model_struc_selec_parameter_list[i]["n_terms"]
-
-                            if key_list[wcont2] == "steps_ahead":
-                                if st.session_state["sa_c"] == True:
-                                    st.number_input(" ", key="steps_aheadmss", min_value=1)
-                                else:
-                                    st.session_state[
-                                        "steps_aheadmss"
-                                    ] = model_struc_selec_parameter_list[i]["steps_ahead"]
-                            if key_list[wcont2] == "random_state":
-                                if st.session_state["rs_c"] == True:
-                                    st.number_input(" ", key="random_statemss", min_value=1)
-                                else:
-                                    st.session_state[
-                                        "random_statemss"
-                                    ] = model_struc_selec_parameter_list[i]["random_state"]
-
-                            wcont2 = wcont2 + 1
-
-                        model_struc_selec_par_dict = dict(
-                            model_struc_selec_parameter_list[i]
-                        )
-                        model_struc_selec_par_list = list()
-
-                        if utils.occurrence_check(
-                            "mss_par_", list(st.session_state)
-                        ) != len(
-                            utils.dict_values_to_list(model_struc_selec_parameter_list[i])
-                        ):
-                            # quando troca de basis function, se o numero de parametros é menor, dá um erro porque tem keys a mais de session state
-                            # aqui, apago os excedentes
-                            for key in utils.session_state_cut(
-                                st.session_state,
-                                "mss_par_",
-                                len(
-                                    utils.dict_values_to_list(
-                                        model_struc_selec_parameter_list[i]
-                                    )
-                                ),
-                            ):
-                                del st.session_state[key]
-
-                        for j in range(len(list(st.session_state))):
-                            if list(st.session_state)[j].startswith("mss_par_"):
-                                model_struc_selec_par_list.append(list(st.session_state)[j])
-                        model_struc_selec_par_list = utils.sorter(
-                            model_struc_selec_par_list
-                        )
-
-                        for j in range(len(model_struc_selec_par_list)):
-                            model_struc_selec_par_dict[
-                                list(model_struc_selec_parameter_list[i])[j]
-                            ] = st.session_state[model_struc_selec_par_list[j]]
-                        model_struc_selec_par_dict["basis_function"] = bf
-                        if "n_terms" in model_struc_selec_parameter_list[i]:
-                            model_struc_selec_par_dict["n_terms"] = st.session_state[
-                                "n_terms"
-                            ]
-                        if "steps_ahead" in model_struc_selec_parameter_list[i]:
-                            model_struc_selec_par_dict["steps_ahead"] = st.session_state[
-                                "steps_aheadmss"
-                            ]
-                        if "random_state" in model_struc_selec_parameter_list[i]:
-                            model_struc_selec_par_dict["random_state"] = st.session_state[
-                                "random_statemss"
-                            ]
+            # 延迟阶数设置
+            col_arx4, col_arx5 = st.columns(2)
+            with col_arx4:
+                na = st.number_input("输出阶数上限 (na)", min_value=1, max_value=10, value=2,
+                                   help="将尝试使用1到na之间的所有阶数")
+                st.write(f"输出延迟: {list(range(1, na + 1))}")
+            with col_arx5:
+                nb = st.number_input("输入阶数上限 (nb)", min_value=1, max_value=10, value=2,
+                                   help="将尝试使用1到nb之间的所有阶数")
+                st.write(f"输入延迟: {list(range(1, nb + 1))}")
+            
+            # 采样时间设置
+            # 检查是否有时间戳列并设置采样时间
+            has_timestamp = False
+            try:
+                if 'data_x' in locals():
+                    if 'time' in data_x.columns or 'timestamp' in data_x.columns:
+                        time_col = 'time' if 'time' in data_x.columns else 'timestamp'
+                        time_data = pd.to_numeric(data_x[time_col], errors='coerce')
+                        if not time_data.isna().any():
+                            # 计算平均采样时间
+                            avg_ts = np.mean(np.diff(time_data))
+                            st.write(f"检测到时间序列数据，平均采样时间: {avg_ts:.4f} 秒")
+                            has_timestamp = True
+                            default_ts = avg_ts
+                        else:
+                            default_ts = 0.1
+                    else:
+                        default_ts = 0.1
+                else:
+                    default_ts = 0.1
+            except Exception as e:
+                st.warning(f"处理时间戳时出错: {str(e)}")
+                default_ts = 0.1
+            
+            # 允许用户设置采样时间
+            Ts = st.number_input(
+                "采样时间 (秒)",
+                value=float(default_ts),
+                min_value=0.0001,
+                max_value=1000.0,
+                format="%.4f",
+                help="如果数据包含时间戳，这里显示检测到的采样时间。您也可以手动调整。"
+            )
+            
+            # 模型结构选择算法
+            st.markdown("---")  # 分隔线
+            st.subheader("模型结构选择")
+            
+            st.selectbox(
+                "选择算法",
+                list(model_struc_dict),
+                key="model_struc_select_key",
+                index=3,
+            )
+            
+            # 算法参数设置
+            for i in range(len(model_struc_dict)):
+                if st.session_state["model_struc_select_key"] == list(model_struc_dict)[i]:
+                    wcont2 = 0
+                    key_list = list(model_struc_selec_parameter_list[i])
+                    model_params = {}
+                    while wcont2 < len(utils.dict_values_to_list(model_struc_selec_parameter_list[i])):
+                        k = "mss_par_" + str(wcont2)
+                        param_name = key_list[wcont2]
+                        param_value = model_struc_selec_parameter_list[i][param_name]
+                        
+                        # 跳过maxiter参数
+                        if param_name == 'maxiter':
+                            wcont2 += 1
+                            continue
+                            
+                        if isinstance(param_value, bool):
+                            st.write(utils.adjust_string(param_name))
+                            model_params[param_name] = st.checkbox("", key=k, value=param_value)
+                        elif isinstance(param_value, int):
+                            model_params[param_name] = st.number_input(
+                                utils.adjust_string(param_name),
+                                key=k,
+                                min_value=0,
+                                value=param_value
+                            )
+                        wcont2 += 1
 
             st.markdown("""---""")
 
@@ -590,122 +323,338 @@ with tab3:  # Model Setup tab
             model = utils.str_to_class(
                 model_struc_dict[st.session_state["model_struc_select_key"]][1],
                 model_struc_selec_module,
-            )(**model_struc_selec_par_dict)
+            )(**model_params)
 
-        if (
-            st.session_state["y_data"] != None and st.session_state["x_data"] != None
-        ):  # não é o melhor jeito de fazer isso
-            st.write("预测选项")
-            if isinstance(model, MetaMSS):  # MetaMSS tem métodos diferentes
-                model.fit(X=x_train, y=y_train, X_test=x_valid, y_test=y_valid)
-                if "steps_ahead" not in st.session_state:
-                    st.session_state["steps_ahead"] = None
-                if "forecast_horizon" not in st.session_state:
-                    st.session_state["forecast_horizon"] = None
-                st.write("自由运行仿真")
-                if st.checkbox("", value=True, key="free_run") is False:
-                    st.number_input("预测步数", key="steps_ahead", min_value=1)
-                    if model.model_type == "NAR":
-                        st.number_input(
-                            "预测范围", key="forecast_horizon", min_value=1
-                        )
-                yhat = model.predict(
-                    X=x_valid,
-                    y=y_valid,
-                    steps_ahead=st.session_state["steps_ahead"],
-                    forecast_horizon=st.session_state["forecast_horizon"],
-                )
+            # 连续时间模型选择
+            st.markdown("---")  # 分隔线
+            st.subheader("连续时间模型设置")
+            
+            model_type = st.selectbox(
+                "选择模型结构",
+                ["一阶模型 (FOPDT)", "二阶模型 (SOPDT)", "纯延迟模型"]
+            )
 
+            if model_type == "一阶模型 (FOPDT)":
+                st.write("一阶加延迟模型 (FOPDT)：")
+                st.latex(r"G(s) = \frac{K e^{-\theta s}}{\tau s + 1}")
+                st.write("其中：K为增益，θ为时滞，τ为时间常数")
+            elif model_type == "二阶模型 (SOPDT)":
+                st.write("二阶加延迟模型 (SOPDT)：")
+                st.latex(r"G(s) = \frac{K e^{-\theta s}}{(\tau_1 s + 1)(\tau_2 s + 1)}")
+                st.write("其中：K为增益，θ为时滞，τ₁和τ₂为时间常数")
             else:
-                model.fit(X=x_train, y=y_train)
-                if "steps_ahead" not in st.session_state:
-                    st.session_state["steps_ahead"] = None
-                if "forecast_horizon" not in st.session_state:
-                    st.session_state["forecast_horizon"] = None
-                st.write("自由运行仿真")
-                if st.checkbox("", value=True, key="free_run") is False:
-                    st.number_input("预测步数", key="steps_ahead", min_value=1)
-                    if model.model_type == "NAR":
-                        st.number_input(
-                            "预测范围", key="forecast_horizon", min_value=1
-                        )
-                yhat = model.predict(
-                    X=x_valid,
-                    y=y_valid,
-                    steps_ahead=st.session_state["steps_ahead"],
-                    forecast_horizon=st.session_state["forecast_horizon"],
-                )
+                st.write("纯延迟模型：")
+                st.latex(r"G(s) = K e^{-\theta s}")
+                st.write("其中：K为增益，θ为时滞")
+
+            # 参数估计按钮
+            if st.button("开始ARX模型估计"):
+                if 'data_x' in locals() and 'data_y' in locals():
+                    try:
+                        st.write("### ARX模型参数估计结果")
+                        
+                        # 使用ARX模型，设置ylag和xlag为所有可能的延迟组合
+                        model.ylag = list(range(1, na + 1))  # [1, 2, ..., na]
+                        model.xlag = list(range(1, nb + 1))  # [1, 2, ..., nb]
+                        
+                        # 拟合模型
+                        model.fit(X=x_train, y=y_train)
+                        
+                        # 保存模型到session_state
+                        st.session_state['fitted_model'] = model
+                        
+                        # 生成预测
+                        if isinstance(model, MetaMSS):  # MetaMSS有不同的方法
+                            yhat = model.predict(X=x_valid, y=y_valid)
+                        else:
+                            yhat = model.predict(X=x_valid, y=y_valid)
+                        
+                        # 保存预测结果
+                        st.session_state['yhat'] = yhat
+                        st.session_state['y_valid'] = y_valid
+                        st.session_state['x_valid'] = x_valid
+                        
+                        # 显示预测结果
+                        plt.figure(figsize=(10, 6))
+                        plt.plot(y_valid, label='实际值', color='blue')
+                        plt.plot(yhat, label='预测值', color='red', linestyle='--')
+                        plt.title("ARX模型预测结果")
+                        plt.xlabel('样本')
+                        plt.ylabel('值')
+                        plt.legend()
+                        st.pyplot(plt)
+                        
+                    except Exception as e:
+                        st.error(f"处理数据时出错: {str(e)}")
+                        st.info("请确保数据格式正确，并且已经上传了输入和输出数据")
+                else:
+                    st.warning("请先在数据加载页面上传输入和输出数据")
+
+            # 连续时间模型参数估计按钮
+            if st.button("开始连续时间模型估计"):
+                if 'data_x' in locals() and 'data_y' in locals():
+                    try:
+                        st.write("### 连续时间模型参数估计结果")
+                        
+                        # 获取数据
+                        try:
+                            if has_timestamp and len(data_x.columns) > 1:
+                                # 如果有时间戳且有多列，使用除时间戳外的第一列
+                                x = data_x.iloc[:, [i for i in range(len(data_x.columns)) if data_x.columns[i] not in ['time', 'timestamp']][0]].values
+                            else:
+                                # 否则使用第一列
+                                x = data_x.iloc[:, 0].values
+                        except Exception as e:
+                            st.error(f"选择输入数据列时出错: {str(e)}")
+                            x = data_x.iloc[:, 0].values
+                            
+                        y = data_y.iloc[:, 0].values
+                        
+                        if model_type == "一阶模型 (FOPDT)":
+                            # 使用ARX模型，设置ylag和xlag为所有可能的延迟组合
+                            model.ylag = list(range(1, na + 1))  # [1, 2, ..., na]
+                            model.xlag = list(range(1, nb + 1))  # [1, 2, ..., nb]
+                            
+                            # 拟合模型
+                            model.fit(X=x_train, y=y_train)
+                            
+                            # 获取ARX参数
+                            arx_params = {
+                                'a': model.theta[:na],  # 输出系数
+                                'b': model.theta[na:na+nb],  # 输入系数
+                            }
+                            
+                            # 转换为FOPDT参数
+                            fopdt_params = utils.convert_arx_to_continuous(arx_params, Ts)
+                            st.session_state['model_params'] = fopdt_params
+                            
+                            st.write(f"估计的时滞 θ = {fopdt_params['theta']:.4f} 秒")
+                            st.write(f"增益 K = {fopdt_params['K']:.4f}")
+                            st.write(f"时间常数 τ = {fopdt_params['tau']:.4f} 秒")
+                            
+                            # 生成预测值
+                            y_pred = np.zeros_like(y)
+                            delay_samples = int(fopdt_params['theta'] / Ts)
+                            for i in range(len(y)):
+                                if i+delay_samples < len(x):
+                                    # 使用FOPDT模型计算预测值
+                                    t = i * Ts
+                                    y_pred[i] = fopdt_params['K'] * x[i] * (1 - np.exp(-t/fopdt_params['tau']))
+                            
+                            # 保存预测结果
+                            st.session_state['y_pred_ct'] = y_pred
+                            
+                        elif model_type == "二阶模型 (SOPDT)":
+                            # 使用ARX模型，设置ylag和xlag为所有可能的延迟组合
+                            model.ylag = list(range(1, na + 1))  # [1, 2, ..., na]
+                            model.xlag = list(range(1, nb + 1))  # [1, 2, ..., nb]
+                            
+                            # 拟合模型
+                            model.fit(X=x_train, y=y_train)
+                            
+                            # 获取ARX参数
+                            arx_params = {
+                                'a': model.theta[:na],  # 输出系数
+                                'b': model.theta[na:na+nb],  # 输入系数
+                            }
+                            
+                            # 转换为SOPDT参数
+                            sopdt_params = utils.convert_arx_to_continuous(arx_params, Ts)
+                            st.session_state['model_params'] = sopdt_params
+                            
+                            st.write(f"估计的时滞 θ = {sopdt_params['theta']:.4f} 秒")
+                            st.write(f"增益 K = {sopdt_params['K']:.4f}")
+                            st.write(f"时间常数 τ₁ = {sopdt_params['tau1']:.4f} 秒")
+                            st.write(f"时间常数 τ₂ = {sopdt_params['tau2']:.4f} 秒")
+                            
+                            # 生成预测值
+                            y_pred = np.zeros_like(y)
+                            delay_samples = int(sopdt_params['theta'] / Ts)
+                            for i in range(len(y)):
+                                if i+delay_samples < len(x):
+                                    # 使用SOPDT模型计算预测值
+                                    t = i * Ts
+                                    y_pred[i] = sopdt_params['K'] * x[i] * (
+                                        1 - (sopdt_params['tau1'] * np.exp(-t/sopdt_params['tau1']) - 
+                                             sopdt_params['tau2'] * np.exp(-t/sopdt_params['tau2'])) / 
+                                        (sopdt_params['tau1'] - sopdt_params['tau2'])
+                                    )
+                            
+                            # 保存预测结果
+                            st.session_state['y_pred_ct'] = y_pred
+                            
+                        else:  # 纯延迟模型
+                            # 估计时滞
+                            corr = np.correlate(y - np.mean(y), x - np.mean(x), mode='full')
+                            delay = len(corr)//2 - np.argmax(corr)
+                            theta = delay * Ts
+                            
+                            # 估计增益K
+                            K = np.std(y) / np.std(x)
+                            
+                            # 保存模型参数
+                            st.session_state['model_params'] = {
+                                'theta': theta,
+                                'K': K
+                            }
+                            
+                            st.write(f"估计的时滞 θ = {theta:.4f} 秒")
+                            st.write(f"增益 K = {K:.4f}")
+                            
+                            # 生成预测值
+                            y_pred = np.zeros_like(y)
+                            for i in range(len(y)):
+                                if i+delay < len(x):
+                                    y_pred[i] = K * x[i]
+                            
+                            # 保存预测结果
+                            st.session_state['y_pred_ct'] = y_pred
+
+                        # 计算评估指标
+                        valid_idx = ~np.isnan(y_pred)
+                        r2 = r2_score(y[valid_idx], y_pred[valid_idx])
+                        rmse = np.sqrt(mean_squared_error(y[valid_idx], y_pred[valid_idx]))
+                        st.write("### 模型评估")
+                        st.write(f"R² 分数: {r2:.4f}")
+                        st.write(f"RMSE: {rmse:.4f}")
+
+                        # 绘制结果对比图
+                        plt.figure(figsize=(10, 6))
+                        plt.plot(y, label='实际值', color='blue')
+                        plt.plot(y_pred, label='预测值', color='red', linestyle='--')
+                        plt.title(f"{model_type}预测结果对比")
+                        plt.xlabel('样本')
+                        plt.ylabel('值')
+                        plt.legend()
+                        st.pyplot(plt)
+                        
+                    except Exception as e:
+                        st.error(f"处理数据时出错: {str(e)}")
+                        st.info("请确保数据格式正确，并且已经上传了输入和输出数据")
+                else:
+                    st.warning("请先在数据加载页面上传输入和输出数据")
 
 with tab4:  # Model Validation tab
     if (
         st.session_state["y_data"] != None and st.session_state["x_data"] != None
-    ):  # não é o melhor jeito de fazer isso
-        st.write("模型回归器")
-        r = pd.DataFrame(
-            results(
-                model.final_model,
-                model.theta,
-                model.err,
-                model.n_terms,
-                err_precision=8,
-                dtype="sci",
-            ),
-            columns=["回归项", "参数", "ERR"],
-        )
-        st.dataframe(r)
-
-        ee = compute_residues_autocorrelation(y_valid, yhat)
-        if x_train.shape[1] == 1:
-            x1e = compute_cross_correlation(y_valid, yhat, x_valid)
-        else:
-            x1e = compute_cross_correlation(y_valid, yhat, x_valid[:, 0])
-        with st.expander("结果图"):
-            if st.session_state["free_run"] == True:
-                st.image(utils.plot_results(y=y_valid, yhat=yhat, n=1000))
+    ):
+        # 创建两个标签页
+        val_tab1, val_tab2 = st.tabs(["ARX模型验证", "连续时间模型验证"])
+        
+        with val_tab1:  # ARX模型验证
+            # 检查模型是否已经拟合
+            if 'fitted_model' not in st.session_state:
+                st.warning("请先在模型设置页面完成ARX模型参数估计")
             else:
-                st.image(
-                    utils.plot_results(
-                        y=y_valid,
-                        yhat=yhat,
-                        n=1000,
-                        title=str(st.session_state["steps_ahead"])
-                        + " 步预测仿真",
-                    )
+                model = st.session_state['fitted_model']
+                st.write("模型回归器")
+                r = pd.DataFrame(
+                    results(
+                        model.final_model,
+                        model.theta,
+                        model.err,
+                        model.n_terms,
+                        err_precision=8,
+                        dtype="sci",
+                    ),
+                    columns=["回归项", "参数", "ERR"],
                 )
-        with st.expander("残差图"):
-            st.image(
-                utils.plot_residues_correlation(
-                    data=ee, title="残差", ylabel="$e^2$"
-                )
-            )
-            st.image(
-                utils.plot_residues_correlation(
-                    data=x1e, title="残差", ylabel="$x_1e$", second_fig=True
-                )
-            )
+                st.dataframe(r)
 
-        metrics_df = dict()
-        metrics_namelist = list()
-        metrics_vallist = list()  # criando listas separadas deixa mais bonito
-        with st.expander("评估指标"):
-            for index in range(len(metrics_list)):
-                if metrics_list[index] == "forecast_error":
-                    pass
+                # 检查是否有预测结果
+                if 'yhat' not in st.session_state:
+                    st.warning("请先在模型设置页面完成ARX模型预测")
                 else:
-                    metrics_namelist.append(
-                        utils.get_acronym(utils.adjust_string(metrics_list[index]))
-                    )
-                    metrics_vallist.append(
-                        getattr(metrics, metrics_list[index])(y_valid, yhat)
-                    )
-            metrics_df["指标名称"] = metrics_namelist
-            metrics_df["数值"] = metrics_vallist
-            st.dataframe(pd.DataFrame(metrics_df).style.format({"数值": "{:f}"}))
+                    yhat = st.session_state['yhat']
+                    y_valid = st.session_state['y_valid']
+                    x_valid = st.session_state['x_valid']
+                    
+                    ee = compute_residues_autocorrelation(y_valid, yhat)
+                    if x_valid.shape[1] == 1:
+                        x1e = compute_cross_correlation(y_valid, yhat, x_valid)
+                    else:
+                        x1e = compute_cross_correlation(y_valid, yhat, x_valid[:, 0])
+                    
+                    with st.expander("结果图"):
+                        if "free_run" not in st.session_state:
+                            st.session_state["free_run"] = True
+                            
+                        if st.session_state["free_run"]:
+                            st.image(utils.plot_results(y=y_valid, yhat=yhat, n=1000))
+                        else:
+                            st.image(
+                                utils.plot_results(
+                                    y=y_valid,
+                                    yhat=yhat,
+                                    n=1000,
+                                    title=str(st.session_state.get("steps_ahead", ""))
+                                    + " 步预测仿真",
+                                )
+                            )
+                    with st.expander("残差图"):
+                        st.image(
+                            utils.plot_residues_correlation(
+                                data=ee, title="残差", ylabel="$e^2$"
+                            )
+                        )
+                        st.image(
+                            utils.plot_residues_correlation(
+                                data=x1e, title="残差", ylabel="$x_1e$", second_fig=True
+                            )
+                        )
+
+                    metrics_df = dict()
+                    metrics_namelist = list()
+                    metrics_vallist = list()
+                    with st.expander("评估指标"):
+                        for index in range(len(metrics_list)):
+                            if metrics_list[index] == "forecast_error":
+                                pass
+                            else:
+                                metrics_namelist.append(
+                                    utils.get_acronym(utils.adjust_string(metrics_list[index]))
+                                )
+                                metrics_vallist.append(
+                                    getattr(metrics, metrics_list[index])(y_valid, yhat)
+                                )
+                        metrics_df["指标名称"] = metrics_namelist
+                        metrics_df["数值"] = metrics_vallist
+                        st.dataframe(pd.DataFrame(metrics_df).style.format({"数值": "{:f}"}))
+        
+        with val_tab2:  # 连续时间模型验证
+            if 'model_params' not in st.session_state:
+                st.warning("请先在模型设置页面完成连续时间模型参数估计")
+            elif 'y_pred_ct' not in st.session_state:
+                st.warning("请先在模型设置页面完成连续时间模型预测")
+            else:
+                st.write("### 连续时间模型参数")
+                params = st.session_state['model_params']
+                for key, value in params.items():
+                    st.write(f"{key} = {value:.4f}")
+                
+                y_pred = st.session_state['y_pred_ct']
+                valid_idx = ~np.isnan(y_pred)
+                r2 = r2_score(y[valid_idx], y_pred[valid_idx])
+                rmse = np.sqrt(mean_squared_error(y[valid_idx], y_pred[valid_idx]))
+                
+                st.write("### 模型评估")
+                st.write(f"R² 分数: {r2:.4f}")
+                st.write(f"RMSE: {rmse:.4f}")
+                
+                # 绘制结果对比图
+                plt.figure(figsize=(10, 6))
+                plt.plot(y, label='实际值', color='blue')
+                plt.plot(y_pred, label='预测值', color='red', linestyle='--')
+                plt.title(f"{model_type}预测结果对比")
+                plt.xlabel('样本')
+                plt.ylabel('值')
+                plt.legend()
+                st.pyplot(plt)
 
 with tab5:  # Save Model tab
     if st.session_state["y_data"] != None and st.session_state["x_data"] != None:
         st.download_button(
             "下载模型",
             data=pk.dumps(model),
-            file_name="my_model.syspy",
+            file_name="my_model.syspy"
         )
